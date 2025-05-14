@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.4.0/fonts/remixicon.css" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Hotel Detail</title>
+</head>
+
+<body>
+    <nav>
+        <div class="nav__logo">TNEcoHotel</div>
+        <ul class="nav__links">
+            <li class="link"><a href="http://localhost:8080/hotels/home">Home</a></li>
+            <li class="link"><a href="#">Hotel</a></li>
+            <li class="link"><a href="#">About Us</a></li>
+            <li class="link">
+                <a id="UEmail" th:text="${userEmail != null ? userEmail : 'Account'}"></a>
+                <ul class="dropdown_menu">
+                    <li><a href="http://localhost:8080/persons/update">Information</a></li>
+                    <li><a href="http://localhost:8080/wishlist/wishlistPage">Wishlist</a></li>
+                    <li><a href="http://localhost:8080/bookings/bookedRoom">Booked</a></li>
+                    <li><a href="http://localhost:8080/users/logout">Log out</a></li>
+                    <li id="PID"><a th:text="${userId}"></a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <section class="section__container header__container">
+        <div class="header__content">
+            <h1 id="hotelName">Hotel Name</h1>
+            <p id="hotelAddress">Hotel Address</p>
+        </div>
+    </section>
+
+    <section class="section__container hotel-list">
+        <div class="hotel-detail">
+            <img id="hotelImage" src="" alt="Hotel Image" style="width: 100%; border-radius: 1rem;" />
+            <div class="hotel-info">
+                <h2 id="hotelStars"></h2>
+                <p id="hotelDescription"></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section__container room-list">
+        <h2>Rooms Available</h2>
+        <div id="roomContainer" class="room-grid"></div>
+    </section>
+
+    <section class="reviews-container">
+        <h2>Customer Reviews</h2>
+        <div id="reviewsContainer" class="reviews-grid"></div>
+    </section>
+
+
+    <footer class="footer">
+        <div class="section__container footer__container">
+            <div class="footer__col">
+                <h3>TNEcoHotel</h3>
+                <p>TNEcoHotel is a premier hotel booking platform designed for both apps and websites, offering a seamless and convenient
+            way to search and book accommodations worldwide.</p>
+            </div>
+            <div class="footer__col">
+                <h4>Company</h4>
+                <p>About Us</p>
+                <p>Our Team</p>
+                <p>Blog</p>
+                <p>Contact Us</p>
+            </div>
+            <div class="footer__col">
+                <h4>Legal</h4>
+                <p>FAQs</p>
+                <p>Terms & Conditions</p>
+                <p>Privacy Policy</p>
+            </div>
+        </div>
+        <div class="footer__bar">
+            Copyright © 2023 Web Design Mastery. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        //Take hotel_id from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const hotelId = urlParams.get('id');
+
+        function getUserId(userEmail) {
+            return fetch(`http://localhost:8080/persons/personEmail/getPID?personEmail=${userEmail}`)
+                .then(response => response.json())
+                .then(data => data[0][0])
+                .catch(error => {
+                    console.error('Error fetching userId:', error);
+                    alert('There was an issue fetching your user details. Please try again.');
+                    throw error;
+                });
+        }
+
+        // Fetch hotels
+        fetch(`http://localhost:8080/hotels/api/hotelId?hotel_id=${hotelId}`)
+            .then(response => response.json())
+            .then(hotel => {
+                document.getElementById('hotelName').textContent = hotel.hname;
+                document.getElementById('hotelAddress').textContent = hotel.haddress;
+                document.getElementById('hotelImage').src = `/images/${hotel.himg}`;
+                document.getElementById('hotelStars').textContent = `${hotel.hstar} Stars`;
+                document.getElementById('hotelDescription').textContent = hotel.hdescription || "No description available.";
+            })
+            .catch(error => console.error('Error fetching hotel details:', error));
+
+        // Fetch list rooms
+        let rooms = [];
+        fetch(`http://localhost:8080/rooms/hotelId?hotel_id=${hotelId}`)
+            .then(response => response.json())
+            .then(data => {
+                rooms = data;
+                console.log("Rooms", rooms)
+                const roomContainer = document.getElementById('roomContainer');
+                roomContainer.innerHTML = ''; // Clear previous room list
+
+                rooms.forEach(room => {
+                    const roomCard = document.createElement('div');
+                    roomCard.className = 'room-card';
+                    roomCard.innerHTML = `
+                        <img src="/images/${room.ctgimg}" alt="${room.ctgname}" class="room-image" />
+                        <div class="room-info">
+                            <h3>${room.ctgname}</h3>
+                            <p>${room.ctgdescription}</p>
+                            <p><strong>Price:</strong> $${room.ctgprice}/night</p>
+                            <p><strong>Available:</strong> ${room.ctgremain}/${room.ctgquantity}</p>
+                            ${room.ctgremain > 0
+                                ? `<button class="btn" onclick="showBookingForm('${room.ctgid}', '${room.ctgname}', '${room.ctgimg}', '${room.ctgprice}', ${hotelId})">Book Now</button>`
+                                : ''
+                            }
+                            <button class="btn-wishlist" onclick="addToWishlist(${room.ctgid})">
+                                <i class="fa fa-heart"></i> Add to Wishlist
+                            </button>
+                        </div>
+                    `;
+                    roomContainer.appendChild(roomCard);
+                });
+            })
+            .catch(error => console.error('Error fetching room details:', error));
+
+        function addToWishlist(roomId) {
+            const userEmail = document.getElementById('UEmail').textContent.trim();
+
+            fetch(`http://localhost:8080/persons/personEmail/getPID?personEmail=${userEmail}`)
+                .then(response => response.json())
+                .then(data => {
+                    const userId = data[0][0];
+                    console.log("UserId:", userId);
+
+                    const params = new URLSearchParams();
+                    params.append('pid', userId);
+                    params.append('ctgid', roomId);
+
+                    fetch(`http://localhost:8080/wishlist/addToWishlist`, {
+                        method: 'POST',
+                        body: params
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log("Response:", data);
+                            alert('Room added to wishlist!');
+                        })
+                        .catch(error => {
+                            console.error('Error adding to wishlist:', error);
+                            alert('Failed to add room to wishlist.');
+                        });
+                })
+                .catch(error => {
+                    console.error('Error fetching userId:', error);
+                    alert('There was an issue fetching your user details. Please try again.');
+                });
+        }
+
+        function showBookingForm(roomId, roomName, roomImg, roomPrice, hotelId) {
+            console.log("HotelId form:", hotelId);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay';
+
+            const form = document.createElement('div');
+            form.className = 'booking-form';
+            form.innerHTML = `
+            <form>
+                <h2>Booking Room</h2>
+                <img src="/images/${roomImg}" alt="${roomName}" width="400px"/>
+                <p>Type: ${roomName}</p>
+                <label for="checkin">Check-in:</label>
+                <input type="date" id="checkin" required>
+                <label for="checkout">Check-out:</label>
+                <input type="date" id="checkout" required>
+                <p><strong>Total Price:</strong> $<span id="totalPrice">0</span></p>
+                <button type="submit">Book now !</button>
+                <button type="button" id="closeForm">Back</button>
+            </form>
+            `;
+
+            document.body.appendChild(overlay);
+            document.body.appendChild(form);
+
+            form.style.top = `${window.innerHeight / 2 - form.offsetHeight / 2}px`;
+            form.style.left = `${window.innerWidth / 2 - form.offsetWidth / 2}px`;
+
+            const checkinInput = form.querySelector('#checkin');
+            const checkoutInput = form.querySelector('#checkout');
+            const totalPriceElement = form.querySelector('#totalPrice');
+
+            function calculateTotalPrice() {
+                const checkinDate = new Date(checkinInput.value);
+                const checkoutDate = new Date(checkoutInput.value);
+
+                if (checkinDate && checkoutDate && checkoutDate > checkinDate) {
+                    const time = Math.abs(checkoutDate - checkinDate);
+                    const days = Math.ceil(time / (1000 * 60 * 60 * 24));
+                    const totalPrice = days * roomPrice;
+                    totalPriceElement.textContent = totalPrice;
+                } else {
+                    totalPriceElement.textContent = '0';
+                }
+            }
+
+            checkinInput.addEventListener('change', calculateTotalPrice);
+            checkoutInput.addEventListener('change', calculateTotalPrice);
+
+            document.getElementById('closeForm').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                document.body.removeChild(form);
+            });
+
+            form.querySelector('form').addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                const checkinDate = checkinInput.value;
+                const checkoutDate = checkoutInput.value;
+                const totalPrice = totalPriceElement.textContent;
+
+                const userEmail = document.getElementById('UEmail').textContent.trim();
+                console.log("Email:", userEmail)
+
+                console.log("CTGID:", roomId);
+                console.log("Money", totalPrice);
+                console.log("Check-in:", checkinDate)
+                console.log("Check-out:", checkoutDate)
+
+                fetch(`http://localhost:8080/persons/personEmail/getPID?personEmail=${userEmail}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const userId = data[0][0];
+                        console.log("UserId:", userId);
+
+                        fetch('http://localhost:8080/bookings/booked', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                pid: userId,
+                                ctgid: roomId,
+                                hid: hotelId,
+                                money: totalPrice,
+                                checkInDate: checkinDate,
+                                checkOutDate: checkoutDate
+                            })
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log("booking_data:", data);
+                                alert('Booking successful!');
+                                document.body.removeChild(overlay);
+                                document.body.removeChild(form);
+                            })
+                            .catch(error => {
+                                console.error('Error booking room:', error);
+                                alert('Booking successful!');
+                                document.body.removeChild(overlay);
+                                document.body.removeChild(form);
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching userId:', error);
+                        alert('There was an issue fetching your user details. Please try again.');
+                    });
+            });
+        }
+
+        function fetchReviews(hotelId) {
+            fetch(`http://localhost:8080/api/reviews/hotelId?hotelId=${hotelId}`)
+                .then(response => response.json())
+                .then(reviews => {
+                    console.log('Reviews Data:', reviews);
+                    const reviewsContainer = document.getElementById('reviewsContainer');
+                    reviewsContainer.innerHTML = '';
+
+                    if (reviews && Array.isArray(reviews)) {
+                        reviews.forEach(review => {
+                            const [rating, comment, category, customerName] = review; //column_name
+
+                            const reviewCard = document.createElement('div');
+                            reviewCard.className = 'review-card';
+                            reviewCard.innerHTML = `
+                                <div class="review-info">
+                                    <h3>${customerName || "Anonymous"}</h3>
+                                    <p class="rating">Rating: ${rating || "N/A"} ★</p>
+                                    <p class="category">Category: ${category || "Unknown"}</p>
+                                    <p>${comment || "No comment"}</p>
+                                </div>
+                            `;
+                            reviewsContainer.appendChild(reviewCard);
+                        });
+                    } else {
+                        console.error('Error when fetch reviews');
+                    }
+                })
+                .catch(error => console.error('Error fetching reviews:', error));
+        }
+        fetchReviews(hotelId);
+    </script>
+</body>
+
+</html>
+<style>
+    @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
+
+    :root {
+        --primary-color: #4a69bd;
+        --secondary-color: #60a3bc;
+        --accent-color: #38ada9;
+        --text-dark: #2c2c54;
+        --text-light: #95afc0;
+        --background-color: #f7f9fc;
+        --white: #ffffff;
+        --shadow-color: rgba(0, 0, 0, 0.1);
+        --max-width: 1200px;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "Poppins", sans-serif;
+        background-color: var(--background-color);
+        color: var(--text-dark);
+        line-height: 1.6;
+    }
+
+    /* NAVIGATION BAR */
+  #PID{
+      display: none;
+  }
+  nav {
+        max-width: var(--max-width);
+        margin: auto;
+        padding: 2rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .nav__logo {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .nav__links {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+}
+
+    .nav__links .link {
+        position: relative; 
+    }
+
+    .nav__links a {
+        text-decoration: none;
+        color: #333;
+        font-weight: 500;
+        font-size: 16px;
+        transition: color 0.3s ease; 
+    }
+
+    .dropdown_menu {
+        display: none;
+        position: absolute;
+        left: 0;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        list-style: none;
+        padding: 10px 0;
+        min-width: 170px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        z-index: 10;
+        opacity: 0;
+        transform: translateY(-30px);
+        transition: all 0.3s ease;
+    }
+
+    .dropdown_menu li {
+        padding: 10px 20px;
+        transition: background-color 0.3s ease;
+    }
+
+    .dropdown_menu li a {
+        color: #333;
+        font-size: 14px;
+        display: block;
+    }
+
+    .dropdown_menu li:hover {
+        background-color: #f8f9fa;
+    }
+
+    .dropdown_menu li a:hover {
+        color: #007bff;
+    }
+
+    .link:hover .dropdown_menu {
+        display: block;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .link a {
+        font-weight: 500;
+        color: var(--text-light);
+        transition: 0.3s;
+        text-decoration: none;
+    }
+
+    .link a:hover {
+        color: var(--primary-color);
+    }
+
+    /* HEADER */
+    .header__container {
+        text-align: center;
+        padding: 5rem 1rem;
+        background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
+        color: var(--white);
+        clip-path: ellipse(100% 75% at 50% 20%);
+    }
+
+    .header__content h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .header__content p {
+        font-size: 1.2rem;
+    }
+
+    .header__content .btn {
+        margin-top: 2rem;
+        padding: 0.8rem 2rem;
+        background-color: var(--accent-color);
+        color: var(--white);
+        font-size: 1rem;
+        border-radius: 50px;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .header__content .btn:hover {
+        background-color: #3c6382;
+        transform: translateY(-3px);
+    }
+
+    /* HOTEL LIST */
+    .hotel-list {
+        max-width: var(--max-width);
+        margin: auto;
+        padding: 3rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .hotel-detail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2rem;
+        background-color: var(--white);
+        box-shadow: 0 4px 10px var(--shadow-color);
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    .hotel-detail img {
+        flex: 1 1 50%;
+        object-fit: cover;
+    }
+
+    .hotel-info {
+        flex: 1 1 50%;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .hotel-info h2 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .hotel-info p {
+        color: var(--text-light);
+    }
+
+    /* ROOM LIST */
+    .room-list {
+        max-width: var(--max-width);
+        margin: auto;
+    }
+
+    .room-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+    }
+
+    .room-card {
+        background-color: var(--white);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 8px var(--shadow-color);
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .room-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px var(--shadow-color);
+    }
+
+    .room-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+    }
+
+    .room-info {
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .room-info h3 {
+        font-size: 1.4rem;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .room-info p {
+        margin: 0.5rem 0;
+        color: var(--text-light);
+    }
+
+    .room-info .btn, .room-info .btn-wishlist {
+        padding: 12px 24px;
+        border-radius: 50px;
+        font-size: 16px;
+        font-weight: bold;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+        border: none;
+        margin-top: 10px;
+    }
+
+
+    .room-info .btn {
+        background-color: #4CAF50;
+        color: white;
+        width: auto;
+        min-width: 180px;
+        text-align: center;
+    }
+
+    .room-info .btn-wishlist {
+        background-color: #ff6347;
+        color: white;
+        width: auto;
+        min-width: 180px;
+        text-align: center;
+        margin-left: 10px;
+    }
+
+    .room-info .btn:hover {
+        background-color: #45a049;
+        transform: translateY(-5px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .room-info .btn-wishlist:hover {
+        background-color: #ff4500;
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .room-info .btn i, .room-info .btn-wishlist i {
+        margin-right: 8px;
+        font-size: 18px;
+    }
+
+    .room-info .btn:hover i, .room-info .btn-wishlist:hover i {
+        transform: rotate(360deg);
+        transition: transform 0.5s ease;
+    }
+
+    .reviews-container {
+        padding: 40px 20px;
+        background-color: #f8f8f8;
+        text-align: center;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-top: 20px;
+    }
+
+    .reviews-container h2 {
+        font-size: 2rem;
+        color: #333;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+
+    .reviews-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        justify-content: center;
+    }
+
+    /* Card review */
+    .review-card {
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+    }
+
+    .review-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .review-header {
+        display: flex;
+        align-items: center;
+        padding: 20px;
+        background-color: #f5f5f5;
+        border-bottom: 2px solid #e1e1e1;
+    }
+
+    .review-header img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        margin-right: 15px;
+    }
+
+    .review-header h3 {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #333;
+        margin: 0;
+    }
+
+    .rating {
+        margin-top: 5px;
+        color: #f39c12;
+        font-size: 1rem;
+    }
+
+    .category {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+    }
+
+    .review-body {
+        padding: 20px;
+        font-size: 1rem;
+        color: #555;
+        line-height: 1.5;
+    }
+
+    .review-body p.no-comment {
+        color: #ccc;
+        font-style: italic;
+    }
+
+    .no-reviews {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #888;
+        font-style: italic;
+    }
+
+    /* FOOTER */
+    .footer {
+        background-color: var(--primary-color);
+        color: var(--white);
+        padding: 3rem 1rem;
+    }
+
+    .footer__container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        max-width: var(--max-width);
+        margin: auto;
+    }
+
+    .footer__col h3,
+    .footer__col h4 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        color: var(--white);
+    }
+
+    .footer__col p {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .footer__bar {
+        text-align: center;
+        background-color: #3c6382;
+        color: var(--white);
+        padding: 1rem;
+        font-size: 0.9rem;
+        margin-top: 2rem;
+        border-radius: 10px;
+    }
+
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7); 
+        z-index: 10;
+    }
+
+    .booking-form {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(10%, -20%);
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        z-index: 11;
+        width: 500px;
+    }
+
+    .booking-form form {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .booking-form label {
+        margin-top: 10px;
+        font-weight: bold;
+    }
+
+    .booking-form input {
+        margin-top: 5px;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .booking-form button {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .booking-form button#closeForm {
+        background-color: #dc3545;
+    }
+    .form-room-image {
+        width: 110%;
+        height: auto;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+
+    .booking-form form label {
+        display: block;
+        margin-top: 10px;
+        font-weight: bold;
+    }
+
+    .booking-form form input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+</style>
